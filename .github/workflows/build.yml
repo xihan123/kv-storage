@@ -10,7 +10,6 @@ on:
         description: 'Tag to create release for'
         required: true
 
-
 jobs:
   build:
     runs-on: ubuntu-latest
