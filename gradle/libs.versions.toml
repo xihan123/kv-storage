@@ -1,0 +1,35 @@
+[versions]
+agp = "8.13.0"
+androidMinSdkVersion = "26"
+androidTargetSdkVersion = "36"
+coreKtx = "1.17.0"
+koin = "4.1.1"
+kotlin = "2.2.21"
+kotlinx-coroutines-core = "1.10.2"
+material = "1.13.0"
+versionCode = "1"
+versionName = "0.1.0"
+
+[libraries]
+android-material = { module = "com.google.android.material:material", version.ref = "material" }
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+appcompat = { module = "androidx.appcompat:appcompat", version = "1.7.1" }
+koin-android = { module = "io.insert-koin:koin-android" }
+koin-androidx-compose = { module = "io.insert-koin:koin-androidx-compose" }
+koin-bom = { module = "io.insert-koin:koin-bom", version.ref = "koin" }
+koin-core-coroutines = { module = "io.insert-koin:koin-core-coroutines" }
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx-coroutines-core" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines-core" }
+multidex = { module = "androidx.multidex:multidex", version = "2.0.1" }
+xposed-api = { module = "de.robv.android.xposed:api", version = "82" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+lsplugin-jgit = { id = "org.lsposed.lsplugin.jgit", version = "1.1" }
+lsplugin-resopt = { id = "org.lsposed.lsplugin.resopt", version = "1.6" }
+lsplugin-lsparanoid = { id = "org.lsposed.lsparanoid", version = "0.6.0" }
+
+
