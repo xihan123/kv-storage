@@ -11,8 +11,11 @@ plugins {
 }
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
-val keystoreProperties = Properties()
-keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        load(FileInputStream(keystorePropertiesFile))
+    }
+}
 
 val androidMinSdkVersion = libs.versions.androidMinSdkVersion.get().toInt()
 val androidTargetSdkVersion = libs.versions.androidTargetSdkVersion.get().toInt()
@@ -33,13 +36,15 @@ android {
     }
 
     signingConfigs {
-        create("xihantest") {
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = file(keystoreProperties["storeFile"] as String)
-            storePassword = keystoreProperties["storePassword"] as String
-            enableV3Signing = true
-            enableV4Signing = true
+        if (keystorePropertiesFile.exists()) {
+            create("xihantest") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                enableV3Signing = true
+                enableV4Signing = true
+            }
         }
     }
 
@@ -48,14 +53,18 @@ android {
         versionCode = verCode
         versionName = verName
 
-        signingConfig = signingConfigs.getByName("xihantest")
+        if (keystorePropertiesFile.exists()) {
+            signingConfig = signingConfigs.getByName("xihantest")
+        }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("xihantest")
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("xihantest")
+            }
         }
         release {
             isMinifyEnabled = false
