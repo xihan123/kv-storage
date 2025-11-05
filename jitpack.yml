@@ -3,5 +3,6 @@ jdk:
 before_install:
   - sdk install java 21-tem
   - sdk use java 21-tem
-install:
-  - ./gradlew :library:publishToMavenLocal
+  - rm -rf app xposed
+  - sed -i '/include(":app")/d' settings.gradle.kts
+  - sed -i '/include(":xposed")/d' settings.gradle.kts
