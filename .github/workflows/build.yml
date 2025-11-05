@@ -65,4 +65,4 @@ jobs:
           app/build/outputs/apk/**/*.apk
           xposed/build/outputs/apk/**/*.apk
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
