@@ -1,3 +1,10 @@
+![kv-storage](https://socialify.git.ci/xihan123/kv-storage/image?description=1&forks=1&issues=1&language=1&name=1&owner=1&pulls=1&stargazers=1&theme=Auto)
+
+![above](https://img.shields.io/badge/Android-8.0%20or%20above-brightgreen.svg)
+[![Android CI](https://github.com/xihan123/kv-storage/actions/workflows/build.yml/badge.svg)](https://github.com/xihan123/kv-storage/actions/workflows/build.yml)
+[![Latest Release](https://img.shields.io/github/release/xihan123/kv-storage.svg)](https://github.com/xihan123/kv-storage/releases)
+![downloads](https://img.shields.io/github/downloads/xihan123/kv-storage/total)
+
 # KV Storage
 
 一个基于 ContentProvider 的轻量级 Android KV 存储库，支持跨进程通信和 Xposed 模块集成。
@@ -19,9 +26,11 @@
 
 ## 依赖
 
+[![](https://jitpack.io/v/xihan123/kv-storage.svg)](https://jitpack.io/#xihan123/kv-storage)
+
 ```gradle
 dependencies {
-    implementation("com.github.xihan123:kv-storage:1.1")
+    implementation("com.github.xihan123:kv-storage:1.0.0")
 }
 ```
 
@@ -95,9 +104,6 @@ KVStorage.clearAll("SHARED_SETTINGS")
 startKoin {
     androidContext(application)
     androidLogger()
-    modules(module {
-        single<Context> { androidContext() }
-    })
 }
 ```
 
