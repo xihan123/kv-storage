@@ -19,11 +19,13 @@ class KVContentProvider : ContentProvider() {
         private const val AUTHORITY = "website.xihan.kv"
         private const val CODE_GET = 1
         private const val CODE_PUT = 2
+        private const val CODE_BATCH_GET = 3
         private const val TAG = "KVContentProvider"
 
         private val uriMatcher = UriMatcher(UriMatcher.NO_MATCH).apply {
             addURI(AUTHORITY, "get/*/*", CODE_GET) // kvId/key
             addURI(AUTHORITY, "put/*/*", CODE_PUT) // kvId/key
+            addURI(AUTHORITY, "batch/*", CODE_BATCH_GET) // kvId
         }
 
         fun buildUri(operation: String, kvId: String, key: String): Uri {
@@ -79,6 +81,22 @@ class KVContentProvider : ContentProvider() {
                         }
                     }
                     cursor.addRow(arrayOf(value))
+                    cursor
+                }
+                CODE_BATCH_GET -> {
+                    val pathSegments = uri.pathSegments
+                    if (pathSegments.size < 2) {
+                        Log.e(TAG, "Invalid URI: $uri")
+                        return null
+                    }
+                    val kvId = pathSegments[1]
+                    val keys = uri.getQueryParameter("keys")?.split(",") ?: emptyList()
+                    
+                    val cursor = MatrixCursor(arrayOf("key", "value"))
+                    keys.forEach { key ->
+                        val value = KVStorage.getString(kvId, key, "")
+                        cursor.addRow(arrayOf(key, value))
+                    }
                     cursor
                 }
                 else -> null
