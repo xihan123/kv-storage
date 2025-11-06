@@ -75,8 +75,7 @@ HostKVManager.init(enableSharedPreferencesCache = true, modulePackageName = Buil
     android:name="website.xihan.kv.KVContentProvider" 
     android:authorities="website.xihan.kv"
     android:enabled="true" 
-    android:exported="true"
-    android:permission="android.permission.INTERNET" />
+    android:exported="true" />
 ```
 
 ### Kotlin属性委托用法
