@@ -22,13 +22,14 @@ import java.util.concurrent.ConcurrentHashMap
 object HostKVManager : KoinComponent {
 
     private val systemContext: Context by inject()
-    private val cache = ConcurrentHashMap<String, Any>()
+    private val cache = ConcurrentHashMap<String, LruCache<String, Any>>()
     private val listeners =
         ConcurrentHashMap<String, MutableList<WeakReference<(String, Any?) -> Unit>>>()
     private var broadcastReceiver: BroadcastReceiver? = null
     private var spCache: SharedPreferences? = null
     private var enableSpCache = false
     private var targetPackageName: String? = null
+    private var DEFAULT_CACHE_SIZE = 100
 
     private const val MODULE_AUTHORITY = "website.xihan.kv"
     private const val ACTION_KV_CHANGED = "${MODULE_AUTHORITY}.KV_CHANGED"
@@ -40,14 +41,27 @@ object HostKVManager : KoinComponent {
      * 初始化宿主端KV管理器
      * @param enableSharedPreferencesCache 是否启用SharedPreferences缓存
      * @param modulePackageName 模块包名，用于广播目标包名
+     * @param cacheSize 内存缓存大小限制
      */
-    fun init(enableSharedPreferencesCache: Boolean = false, modulePackageName: String? = null) {
+    fun init(
+        enableSharedPreferencesCache: Boolean = false,
+        modulePackageName: String? = null,
+        cacheSize: Int? = null
+    ) {
         enableSpCache = enableSharedPreferencesCache
         targetPackageName = modulePackageName
+        cacheSize?.let { DEFAULT_CACHE_SIZE = it }
         if (enableSpCache) {
             spCache = systemContext.getSharedPreferences("kv_host_cache", Context.MODE_PRIVATE)
         }
         initBroadcastReceiver()
+    }
+
+    /**
+     * 获取或创建缓存
+     */
+    private fun getCache(kvId: String): LruCache<String, Any> {
+        return cache.getOrPut(kvId) { LruCache(DEFAULT_CACHE_SIZE) }
     }
 
     /**
@@ -76,11 +90,10 @@ object HostKVManager : KoinComponent {
                             return
                         }
 
-                        val cacheKey = "${changedKvId}_$changedKey"
-
                         // 清除缓存
-                        cache.remove(cacheKey)
+                        getCache(changedKvId).remove(changedKey)
                         if (enableSpCache) {
+                            val cacheKey = "${changedKvId}_$changedKey"
                             spCache?.edit(true) { remove(cacheKey) }
                         }
 
@@ -122,9 +135,10 @@ object HostKVManager : KoinComponent {
      * 清除指定kvId的所有缓存
      */
     private fun clearCacheForKvId(kvId: String) {
-        val keysToRemove = cache.keys.filter { it.startsWith("${kvId}_") }
-        keysToRemove.forEach { cache.remove(it) }
+        cache[kvId]?.clear()
         if (enableSpCache) {
+            val keysToRemove =
+                spCache?.all?.keys?.filter { it.startsWith("${kvId}_") } ?: emptyList()
             spCache?.edit(true) {
                 keysToRemove.forEach { remove(it) }
             }
@@ -168,18 +182,24 @@ object HostKVManager : KoinComponent {
     }
 
     /**
-     * 获取缓存键
+     * 获取SP缓存键
      */
-    private fun getCacheKey(kvId: String, key: String): String = "${kvId}_$key"
+    private fun getSpCacheKey(kvId: String, key: String): String = "${kvId}_$key"
 
     /**
      * 创建KV工具类实例
      * @param kvId KV标识
      * @param enableSharedPreferencesCache 是否为此实例启用SharedPreferences缓存，默认使用全局设置
+     * @param cacheSize 内存缓存大小
      */
     fun createKVHelper(
-        kvId: String = "SHARED_SETTINGS", enableSharedPreferencesCache: Boolean = enableSpCache
+        kvId: String = "SHARED_SETTINGS",
+        enableSharedPreferencesCache: Boolean = enableSpCache,
+        cacheSize: Int = DEFAULT_CACHE_SIZE
     ): HostKVHelper {
+        if (!cache.containsKey(kvId)) {
+            cache[kvId] = LruCache(cacheSize)
+        }
         return HostKVHelper(kvId, enableSharedPreferencesCache)
     }
 
@@ -193,9 +213,9 @@ object HostKVManager : KoinComponent {
             try {
                 val uri = buildPutUri(kvId, key, "string", value)
                 systemContext.contentResolver.insert(uri, null)
-                val cacheKey = getCacheKey(kvId, key)
-                cache.put(cacheKey, value)
+                getCache(kvId).put(key, value)
                 if (enableSpCache) {
+                    val cacheKey = getSpCacheKey(kvId, key)
                     spCache?.edit(true) { putString(cacheKey, value) }
                 }
             } catch (e: Exception) {
@@ -204,11 +224,11 @@ object HostKVManager : KoinComponent {
         }
 
         fun getString(key: String, default: String = ""): String {
-            val cacheKey = getCacheKey(kvId, key)
-            cache[cacheKey]?.let { return it as String }
+            getCache(kvId).get(key)?.let { return it as String }
             if (enableSpCache) {
+                val cacheKey = getSpCacheKey(kvId, key)
                 spCache?.getString(cacheKey, null)?.let {
-                    cache.put(cacheKey, it)
+                    getCache(kvId).put(key, it)
                     return it
                 }
             }
@@ -218,8 +238,9 @@ object HostKVManager : KoinComponent {
                 cursor?.use {
                     if (it.moveToFirst()) {
                         val value = it.getString(0)
-                        cache.put(cacheKey, value)
+                        getCache(kvId).put(key, value)
                         if (enableSpCache) {
+                            val cacheKey = getSpCacheKey(kvId, key)
                             spCache?.edit(true) { putString(cacheKey, value) }
                         }
                         value
@@ -236,9 +257,9 @@ object HostKVManager : KoinComponent {
             try {
                 val uri = buildPutUri(kvId, key, "int", value.toString())
                 systemContext.contentResolver.insert(uri, null)
-                val cacheKey = getCacheKey(kvId, key)
-                cache.put(cacheKey, value)
+                getCache(kvId).put(key, value)
                 if (enableSpCache) {
+                    val cacheKey = getSpCacheKey(kvId, key)
                     spCache?.edit(true) { putInt(cacheKey, value) }
                 }
             } catch (e: Exception) {
@@ -247,12 +268,14 @@ object HostKVManager : KoinComponent {
         }
 
         fun getInt(key: String, default: Int = 0): Int {
-            val cacheKey = getCacheKey(kvId, key)
-            cache[cacheKey]?.let { return it as Int }
-            if (enableSpCache && spCache?.contains(cacheKey) == true) {
-                val value = spCache?.getInt(cacheKey, default) ?: default
-                cache.put(cacheKey, value)
-                return value
+            getCache(kvId).get(key)?.let { return it as Int }
+            if (enableSpCache) {
+                val cacheKey = getSpCacheKey(kvId, key)
+                if (spCache?.contains(cacheKey) == true) {
+                    val value = spCache?.getInt(cacheKey, default) ?: default
+                    getCache(kvId).put(key, value)
+                    return value
+                }
             }
             return try {
                 val uri = buildGetUri(kvId, key, "int", default.toString())
@@ -260,8 +283,9 @@ object HostKVManager : KoinComponent {
                 cursor?.use {
                     if (it.moveToFirst()) {
                         val value = it.getString(0).toInt()
-                        cache.put(cacheKey, value)
+                        getCache(kvId).put(key, value)
                         if (enableSpCache) {
+                            val cacheKey = getSpCacheKey(kvId, key)
                             spCache?.edit(true) { putInt(cacheKey, value) }
                         }
                         value
@@ -278,9 +302,9 @@ object HostKVManager : KoinComponent {
             try {
                 val uri = buildPutUri(kvId, key, "long", value.toString())
                 systemContext.contentResolver.insert(uri, null)
-                val cacheKey = getCacheKey(kvId, key)
-                cache.put(cacheKey, value)
+                getCache(kvId).put(key, value)
                 if (enableSpCache) {
+                    val cacheKey = getSpCacheKey(kvId, key)
                     spCache?.edit(true) { putLong(cacheKey, value) }
                 }
             } catch (e: Exception) {
@@ -289,12 +313,14 @@ object HostKVManager : KoinComponent {
         }
 
         fun getLong(key: String, default: Long = 0L): Long {
-            val cacheKey = getCacheKey(kvId, key)
-            cache[cacheKey]?.let { return it as Long }
-            if (enableSpCache && spCache?.contains(cacheKey) == true) {
-                val value = spCache?.getLong(cacheKey, default) ?: default
-                cache.put(cacheKey, value)
-                return value
+            getCache(kvId).get(key)?.let { return it as Long }
+            if (enableSpCache) {
+                val cacheKey = getSpCacheKey(kvId, key)
+                if (spCache?.contains(cacheKey) == true) {
+                    val value = spCache?.getLong(cacheKey, default) ?: default
+                    getCache(kvId).put(key, value)
+                    return value
+                }
             }
             return try {
                 val uri = buildGetUri(kvId, key, "long", default.toString())
@@ -302,8 +328,9 @@ object HostKVManager : KoinComponent {
                 cursor?.use {
                     if (it.moveToFirst()) {
                         val value = it.getString(0).toLong()
-                        cache.put(cacheKey, value)
+                        getCache(kvId).put(key, value)
                         if (enableSpCache) {
+                            val cacheKey = getSpCacheKey(kvId, key)
                             spCache?.edit(true) { putLong(cacheKey, value) }
                         }
                         value
@@ -320,9 +347,9 @@ object HostKVManager : KoinComponent {
             try {
                 val uri = buildPutUri(kvId, key, "boolean", value.toString())
                 systemContext.contentResolver.insert(uri, null)
-                val cacheKey = getCacheKey(kvId, key)
-                cache.put(cacheKey, value)
+                getCache(kvId).put(key, value)
                 if (enableSpCache) {
+                    val cacheKey = getSpCacheKey(kvId, key)
                     spCache?.edit(true) { putBoolean(cacheKey, value) }
                 }
             } catch (e: Exception) {
@@ -331,12 +358,14 @@ object HostKVManager : KoinComponent {
         }
 
         fun getBoolean(key: String, default: Boolean = false): Boolean {
-            val cacheKey = getCacheKey(kvId, key)
-            cache[cacheKey]?.let { return it as Boolean }
-            if (enableSpCache && spCache?.contains(cacheKey) == true) {
-                val value = spCache?.getBoolean(cacheKey, default) ?: default
-                cache.put(cacheKey, value)
-                return value
+            getCache(kvId).get(key)?.let { return it as Boolean }
+            if (enableSpCache) {
+                val cacheKey = getSpCacheKey(kvId, key)
+                if (spCache?.contains(cacheKey) == true) {
+                    val value = spCache?.getBoolean(cacheKey, default) ?: default
+                    getCache(kvId).put(key, value)
+                    return value
+                }
             }
             return try {
                 val uri = buildGetUri(kvId, key, "boolean", default.toString())
@@ -344,8 +373,9 @@ object HostKVManager : KoinComponent {
                 cursor?.use {
                     if (it.moveToFirst()) {
                         val value = it.getString(0).toBoolean()
-                        cache.put(cacheKey, value)
+                        getCache(kvId).put(key, value)
                         if (enableSpCache) {
+                            val cacheKey = getSpCacheKey(kvId, key)
                             spCache?.edit(true) { putBoolean(cacheKey, value) }
                         }
                         value
@@ -362,9 +392,9 @@ object HostKVManager : KoinComponent {
             try {
                 val uri = buildPutUri(kvId, key, "float", value.toString())
                 systemContext.contentResolver.insert(uri, null)
-                val cacheKey = getCacheKey(kvId, key)
-                cache.put(cacheKey, value)
+                getCache(kvId).put(key, value)
                 if (enableSpCache) {
+                    val cacheKey = getSpCacheKey(kvId, key)
                     spCache?.edit(true) { putFloat(cacheKey, value) }
                 }
             } catch (e: Exception) {
@@ -373,12 +403,14 @@ object HostKVManager : KoinComponent {
         }
 
         fun getFloat(key: String, default: Float = 0f): Float {
-            val cacheKey = getCacheKey(kvId, key)
-            cache[cacheKey]?.let { return it as Float }
-            if (enableSpCache && spCache?.contains(cacheKey) == true) {
-                val value = spCache?.getFloat(cacheKey, default) ?: default
-                cache.put(cacheKey, value)
-                return value
+            getCache(kvId).get(key)?.let { return it as Float }
+            if (enableSpCache) {
+                val cacheKey = getSpCacheKey(kvId, key)
+                if (spCache?.contains(cacheKey) == true) {
+                    val value = spCache?.getFloat(cacheKey, default) ?: default
+                    getCache(kvId).put(key, value)
+                    return value
+                }
             }
             return try {
                 val uri = buildGetUri(kvId, key, "float", default.toString())
@@ -386,8 +418,9 @@ object HostKVManager : KoinComponent {
                 cursor?.use {
                     if (it.moveToFirst()) {
                         val value = it.getString(0).toFloat()
-                        cache.put(cacheKey, value)
+                        getCache(kvId).put(key, value)
                         if (enableSpCache) {
+                            val cacheKey = getSpCacheKey(kvId, key)
                             spCache?.edit(true) { putFloat(cacheKey, value) }
                         }
                         value
@@ -404,9 +437,9 @@ object HostKVManager : KoinComponent {
             try {
                 val uri = buildPutUri(kvId, key, "double", value.toString())
                 systemContext.contentResolver.insert(uri, null)
-                val cacheKey = getCacheKey(kvId, key)
-                cache.put(cacheKey, value)
+                getCache(kvId).put(key, value)
                 if (enableSpCache) {
+                    val cacheKey = getSpCacheKey(kvId, key)
                     spCache?.edit(true) { putString(cacheKey, value.toString()) }
                 }
             } catch (e: Exception) {
@@ -415,14 +448,16 @@ object HostKVManager : KoinComponent {
         }
 
         fun getDouble(key: String, default: Double = 0.0): Double {
-            val cacheKey = getCacheKey(kvId, key)
-            cache[cacheKey]?.let { return it as Double }
-            if (enableSpCache && spCache?.contains(cacheKey) == true) {
-                val value = Double.fromBits(
-                    spCache?.getLong(cacheKey, default.toRawBits()) ?: default.toRawBits()
-                )
-                cache.put(cacheKey, value)
-                return value
+            getCache(kvId).get(key)?.let { return it as Double }
+            if (enableSpCache) {
+                val cacheKey = getSpCacheKey(kvId, key)
+                if (spCache?.contains(cacheKey) == true) {
+                    val value = Double.fromBits(
+                        spCache?.getLong(cacheKey, default.toRawBits()) ?: default.toRawBits()
+                    )
+                    getCache(kvId).put(key, value)
+                    return value
+                }
             }
             return try {
                 val uri = buildGetUri(kvId, key, "double", default.toRawBits().toString())
@@ -430,8 +465,9 @@ object HostKVManager : KoinComponent {
                 cursor?.use {
                     if (it.moveToFirst()) {
                         val value = Double.fromBits(it.getString(0).toLong())
-                        cache.put(cacheKey, value)
+                        getCache(kvId).put(key, value)
                         if (enableSpCache) {
+                            val cacheKey = getSpCacheKey(kvId, key)
                             spCache?.edit(true) { putLong(cacheKey, value.toRawBits()) }
                         }
                         value
@@ -483,15 +519,46 @@ object HostKVManager : KoinComponent {
             return try {
                 val uri = buildPutUri(kvId, key, "remove", "")
                 systemContext.contentResolver.insert(uri, null)
-                val cacheKey = getCacheKey(kvId, key)
-                cache.remove(cacheKey)
+                getCache(kvId).remove(key)
                 if (enableSpCache) {
+                    val cacheKey = getSpCacheKey(kvId, key)
                     spCache?.edit(true) { remove(cacheKey) }
                 }
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to remove: $key", e)
                 false
+            }
+        }
+
+        /**
+         * 批量查询多个键（减少IPC次数）
+         */
+        fun getBatch(keys: Set<String>): Map<String, Any?> {
+            return try {
+                val result = mutableMapOf<String, Any?>()
+                keys.forEach { key ->
+                    // 先尝试从缓存获取
+                    getCache(kvId).get(key)?.let {
+                        result[key] = it
+                    } ?: run {
+                        // 缓存未命中，通过ContentProvider查询
+                        val uri = buildGetUri(kvId, key, "string", "")
+                        val cursor =
+                            systemContext.contentResolver.query(uri, null, null, null, null)
+                        cursor?.use {
+                            if (it.moveToFirst()) {
+                                val value = it.getString(0)
+                                result[key] = value
+                                getCache(kvId).put(key, value)
+                            }
+                        }
+                    }
+                }
+                result
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to get batch", e)
+                emptyMap()
             }
         }
 
@@ -516,6 +583,13 @@ object HostKVManager : KoinComponent {
          */
         fun clearCache() {
             clearCacheForKvId(kvId)
+        }
+
+        /**
+         * 配置缓存大小
+         */
+        fun configureCacheSize(maxSize: Int) {
+            cache[kvId] = LruCache(maxSize)
         }
 
         /**

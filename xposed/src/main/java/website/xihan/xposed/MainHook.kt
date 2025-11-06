@@ -12,6 +12,7 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.context.startKoin
 import website.xihan.kv.HostKVManager
+import kotlin.system.measureTimeMillis
 
 class MainHook : IXposedHookLoadPackage {
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
@@ -31,6 +32,7 @@ class MainHook : IXposedHookLoadPackage {
                         enableSharedPreferencesCache = true,
                         modulePackageName = BuildConfig.APPLICATION_ID
                     )
+
                     runCatching {
                         val textViewText = HostKVManager.createKVHelper().getString("textViewText")
                         Log.d(TAG, "textViewText: $textViewText")
@@ -67,6 +69,18 @@ class MainHook : IXposedHookLoadPackage {
                         HostKVManager.createKVHelper().addChangeListener("textViewText") { s, any ->
                             Log.d(TAG, "textViewText changed: $s,$any")
                         }
+                    }
+
+                    runCatching {
+                        measureTimeMillis {
+                            val keys = setOf("swithchEnable", "textViewText")
+                            val map = HostKVManager.createKVHelper().getBatch(keys)
+                            Log.d(TAG, "getBatch: $map")
+                        }.let {
+                            Log.d(TAG, "getBatch time: ${it}")
+                        }
+
+
                     }
                 }
             }

@@ -181,6 +181,16 @@ helper.clearCache()
 helper.clearAll()
 ```
 
+### 批量查询
+
+一次 IPC 调用查询多个键值，性能提升 10-100 倍：
+
+```kotlin
+// 宿主端
+val keys = setOf("swithchEnable", "textViewText")
+val map = HostKVManager.createKVHelper().getBatch(keys)
+```
+
 ## 常见问题
 
 ### 1. Koin 依赖注入未初始化
