@@ -46,22 +46,16 @@ interface IKVOwner {
         { KVStorage.getDouble(kvId, it, default) },
         { KVStorage.putDouble(kvId, first, second) })
 
-    fun kvString() = KVProperty(
-        { KVStorage.getString(kvId, it, "") },
-        { KVStorage.putString(kvId, first, second) })
-
-    fun kvString(default: String) = KVProperty(
+    fun kvString(default: String = "") = KVProperty(
         { KVStorage.getString(kvId, it, default) },
         { KVStorage.putString(kvId, first, second) })
 
-    fun kvStringSet() = KVProperty(
-        { KVStorage.getStringSet(kvId, it, emptySet()) },
-        { KVStorage.putStringSet(kvId, first, second) })
-
-    fun kvStringSet(default: Set<String>) = KVProperty(
+    fun kvStringSet(default: Set<String> = emptySet()) = KVProperty(
         { KVStorage.getStringSet(kvId, it, default) },
         { KVStorage.putStringSet(kvId, first, second) })
 
+    fun containsKV(key: String) = KVStorage.contains(kvId, key)
+    fun removeKV(key: String) = KVStorage.remove(kvId, key)
     fun clearAllKV() = KVStorage.clearAll(kvId)
 }
 
@@ -74,3 +68,8 @@ open class KVOwner(override val kvId: String) : IKVOwner
  * 获取所有KV数据
  */
 fun IKVOwner.getAllKV(): Map<String, Any?> = KVStorage.getAllKV(kvId)
+
+/**
+ * 批量设置KV数据
+ */
+fun IKVOwner.putAllKV(values: Map<String, Any>) = KVStorage.putAll(kvId, values)
