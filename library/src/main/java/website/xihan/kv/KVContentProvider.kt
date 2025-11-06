@@ -6,6 +6,7 @@ import android.content.UriMatcher
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
+import android.util.Log
 import androidx.core.net.toUri
 
 
@@ -18,6 +19,7 @@ class KVContentProvider : ContentProvider() {
         private const val AUTHORITY = "website.xihan.kv"
         private const val CODE_GET = 1
         private const val CODE_PUT = 2
+        private const val TAG = "KVContentProvider"
 
         private val uriMatcher = UriMatcher(UriMatcher.NO_MATCH).apply {
             addURI(AUTHORITY, "get/*/*", CODE_GET) // kvId/key
@@ -43,62 +45,83 @@ class KVContentProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
         sortOrder: String?
     ): Cursor? {
-        return when (uriMatcher.match(uri)) {
-            CODE_GET -> {
-                val pathSegments = uri.pathSegments
-                val kvId = pathSegments[1]
-                val key = pathSegments[2]
-                val type = uri.getQueryParameter("type") ?: "string"
-                val default = uri.getQueryParameter("default")
+        return try {
+            when (uriMatcher.match(uri)) {
+                CODE_GET -> {
+                    val pathSegments = uri.pathSegments
+                    if (pathSegments.size < 3) {
+                        Log.e(TAG, "Invalid URI: $uri")
+                        return null
+                    }
+                    val kvId = pathSegments[1]
+                    val key = pathSegments[2]
+                    val type = uri.getQueryParameter("type") ?: "string"
+                    val default = uri.getQueryParameter("default")
 
-                val cursor = MatrixCursor(arrayOf("value"))
-                val value = when (type) {
-                    "string" -> KVStorage.getString(kvId, key, default ?: "")
-                    "int" -> KVStorage.getInt(kvId, key, default?.toIntOrNull() ?: 0).toString()
-                    "long" -> KVStorage.getLong(kvId, key, default?.toLongOrNull() ?: 0L).toString()
-                    "boolean" -> KVStorage.getBoolean(
-                        kvId,
-                        key,
-                        default?.toBooleanStrictOrNull() ?: false
-                    ).toString()
-
-                    "float" -> KVStorage.getFloat(kvId, key, default?.toFloatOrNull() ?: 0f)
-                        .toString()
-
-                    "double" -> KVStorage.getDouble(kvId, key, default?.toDoubleOrNull() ?: 0.0)
-                        .toString()
-
-                    else -> ""
+                    val cursor = MatrixCursor(arrayOf("value"))
+                    val value = when (type) {
+                        "string" -> KVStorage.getString(kvId, key, default ?: "")
+                        "int" -> KVStorage.getInt(kvId, key, default?.toIntOrNull() ?: 0).toString()
+                        "long" -> KVStorage.getLong(kvId, key, default?.toLongOrNull() ?: 0L).toString()
+                        "boolean" -> KVStorage.getBoolean(
+                            kvId,
+                            key,
+                            default?.toBooleanStrictOrNull() ?: false
+                        ).toString()
+                        "float" -> KVStorage.getFloat(kvId, key, default?.toFloatOrNull() ?: 0f)
+                            .toString()
+                        "double" -> KVStorage.getDouble(kvId, key, default?.toDoubleOrNull() ?: 0.0)
+                            .toRawBits().toString()
+                        "contains" -> KVStorage.contains(kvId, key).toString()
+                        else -> {
+                            Log.w(TAG, "Unknown type: $type")
+                            ""
+                        }
+                    }
+                    cursor.addRow(arrayOf(value))
+                    cursor
                 }
-                cursor.addRow(arrayOf(value))
-                cursor
+                else -> null
             }
-
-            else -> null
+        } catch (e: Exception) {
+            Log.e(TAG, "Query failed", e)
+            null
         }
     }
 
     override fun insert(uri: Uri, values: ContentValues?): Uri? {
-        when (uriMatcher.match(uri)) {
-            CODE_PUT -> {
-                val pathSegments = uri.pathSegments
-                val kvId = pathSegments[1]
-                val key = pathSegments[2]
-                val type = uri.getQueryParameter("type") ?: "string"
-                val value = uri.getQueryParameter("value") ?: return null
+        return try {
+            when (uriMatcher.match(uri)) {
+                CODE_PUT -> {
+                    val pathSegments = uri.pathSegments
+                    if (pathSegments.size < 3) {
+                        Log.e(TAG, "Invalid URI: $uri")
+                        return null
+                    }
+                    val kvId = pathSegments[1]
+                    val key = pathSegments[2]
+                    val type = uri.getQueryParameter("type") ?: "string"
+                    val value = uri.getQueryParameter("value")
 
-                when (type) {
-                    "string" -> KVStorage.putString(kvId, key, value)
-                    "int" -> KVStorage.putInt(kvId, key, value.toInt())
-                    "long" -> KVStorage.putLong(kvId, key, value.toLong())
-                    "boolean" -> KVStorage.putBoolean(kvId, key, value.toBoolean())
-                    "float" -> KVStorage.putFloat(kvId, key, value.toFloat())
-                    "double" -> KVStorage.putDouble(kvId, key, value.toDouble())
+                    when (type) {
+                        "string" -> value?.let { KVStorage.putString(kvId, key, it) }
+                        "int" -> value?.toIntOrNull()?.let { KVStorage.putInt(kvId, key, it) }
+                        "long" -> value?.toLongOrNull()?.let { KVStorage.putLong(kvId, key, it) }
+                        "boolean" -> value?.toBooleanStrictOrNull()?.let { KVStorage.putBoolean(kvId, key, it) }
+                        "float" -> value?.toFloatOrNull()?.let { KVStorage.putFloat(kvId, key, it) }
+                        "double" -> value?.toLongOrNull()?.let { KVStorage.putDouble(kvId, key, Double.fromBits(it)) }
+                        "remove" -> KVStorage.remove(kvId, key)
+                        "clear" -> KVStorage.clearAll(kvId)
+                        else -> Log.w(TAG, "Unknown type: $type")
+                    }
+                    uri
                 }
-                return uri
+                else -> null
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Insert failed", e)
+            null
         }
-        return null
     }
 
     override fun update(
