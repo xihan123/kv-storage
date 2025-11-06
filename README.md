@@ -30,30 +30,53 @@
 
 ```gradle
 dependencies {
-    implementation("com.github.xihan123:kv-storage:1.0.0")
+    implementation("com.github.xihan123:kv-storage:<JitPack-Version>")
 }
 ```
 
 ## 使用方法
 
-### Xposed 模块集成
+### 初始化
 
-#### 声明
-
-```xml
-
-<provider android:name="website.xihan.kv.KVContentProvider" android:authorities="website.xihan.kv"
-    android:enabled="true" android:exported="true" />
-```
-
-依赖Koin注入，在初始化的时候使用以下代码(具体参考模块Demo)，接下来就可以在任意地方使用=>大概:)
+#### 模块端有UI（推荐方式）
 
 ```kotlin
+class MyApp : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        startKoin {
+            androidContext(this@MyApp)
+            androidLogger()
+        }
+        // 目标应用包名
+        KVSyncManager.setTargetPackages("website.xihan.kv.storage")
+    }
+}
+```
+
+#### 宿主端
+
+```kotlin
+// 在初始化位置获取
+val application = param.args[0] as? Application ?: return
 startKoin {
     androidContext(application)
     androidLogger()
 }
-HostKVManager.init()
+HostKVManager.init(enableSharedPreferencesCache = true, modulePackageName = BuildConfig.APPLICATION_ID)
+```
+
+### Xposed 模块集成
+
+#### AndroidManifest.xml 声明
+
+```xml
+<provider 
+    android:name="website.xihan.kv.KVContentProvider" 
+    android:authorities="website.xihan.kv"
+    android:enabled="true" 
+    android:exported="true"
+    android:permission="android.permission.INTERNET" />
 ```
 
 ### Kotlin属性委托用法
@@ -61,35 +84,102 @@ HostKVManager.init()
 ```kotlin
 // 创建 KV 实例
 object ModuleConfig : IKVOwner by KVOwner("SHARED_SETTINGS") {
-    var swithchEnable by kvBool()
-    var textViewText by kvString()
+    var switchEnable by kvBool()
+    var textViewText by kvString("default")
+    var count by kvInt(0)
+    var ratio by kvDouble(1.0)
 }
 
-ModuleConfig.swithchEnable = true
+// 读写数据
+ModuleConfig.switchEnable = true
 ModuleConfig.textViewText = "123456"
+
+// 检查键是否存在
+if (ModuleConfig.containsKV("switchEnable")) { ... }
+
+// 删除单个键
+ModuleConfig.removeKV("count")
+
+// 批量设置
+ModuleConfig.putAllKV(mapOf(
+    "switchEnable" to true,
+    "textViewText" to "hello",
+    "count" to 100
+))
+
+// 获取所有数据
+val allData = ModuleConfig.getAllKV()
+
+// 清空所有数据
+ModuleConfig.clearAllKV()
 ```
 
 ### 直接操作
 
+#### 模块端
+
 ```kotlin
 // 存储数据
-KVStorage.putBoolean("SHARED_SETTINGS", "swithchEnable", true)
+KVStorage.putBoolean("SHARED_SETTINGS", "switchEnable", true)
 KVStorage.putString("SHARED_SETTINGS", "textViewText", "123456")
+KVStorage.putDouble("SHARED_SETTINGS", "ratio", 3.14)
 
 // 读取数据
-val textViewText = HostKVManager.createKVHelper("SHARED_SETTINGS").getString("textViewText")
-val swithchEnable = HostKVManager.createKVHelper("SHARED_SETTINGS").getBoolean("swithchEnable")
+val text = KVStorage.getString("SHARED_SETTINGS", "textViewText")
+val enabled = KVStorage.getBoolean("SHARED_SETTINGS", "switchEnable")
+
+// 检查和删除
+if (KVStorage.contains("SHARED_SETTINGS", "textViewText")) {
+    KVStorage.remove("SHARED_SETTINGS", "textViewText")
+}
 
 // 批量操作
-KVStorage.putAll(
-    "SHARED_SETTINGS", mapOf(
-        "swithchEnable" to true,
-        "textViewText" to "123456"
-    )
-)
+KVStorage.putAll("SHARED_SETTINGS", mapOf(
+    "switchEnable" to true,
+    "textViewText" to "123456",
+    "count" to 100,
+    "ratio" to 3.14
+))
 
 // 清除所有数据
 KVStorage.clearAll("SHARED_SETTINGS")
+```
+
+#### 宿主端
+
+```kotlin
+val helper = HostKVManager.createKVHelper("SHARED_SETTINGS")
+
+// 读取数据
+val textViewText = helper.getString("textViewText")
+val switchEnable = helper.getBoolean("switchEnable")
+val ratio = helper.getDouble("ratio")
+
+// 写入数据
+helper.putString("textViewText", "hello")
+helper.putBoolean("switchEnable", false)
+
+// 检查和删除
+if (helper.contains("textViewText")) {
+    helper.remove("textViewText")
+}
+
+// 批量操作
+helper.putAll(mapOf(
+    "switchEnable" to true,
+    "textViewText" to "123456"
+))
+
+// 添加变化监听
+helper.addChangeListener("switchEnable") { key, value ->
+    Log.d("KV", "$key changed")
+}
+
+// 清除缓存
+helper.clearCache()
+
+// 清空所有数据
+helper.clearAll()
 ```
 
 ## 常见问题
@@ -98,14 +188,7 @@ KVStorage.clearAll("SHARED_SETTINGS")
 
 **问题**: 使用时抛出 `KoinApplicationNotStartedException`
 
-**解决方案**: 在使用前必须初始化 Koin
-
-```kotlin
-startKoin {
-    androidContext(application)
-    androidLogger()
-}
-```
+**解决方案**: 在使用前必须初始化
 
 ### 2. 跨进程数据不同步
 
@@ -114,8 +197,9 @@ startKoin {
 **解决方案**:
 
 - 确保已调用 `HostKVManager.init()` 初始化广播接收器
+- 设置目标包名: `KVSyncManager.setTargetPackages("com.example.host")`
 - 检查广播权限是否正常
-- Android 12+ 需要 `RECEIVER_EXPORTED` 标志（已自动处理）
+- 检查目标应用是否已安装且运行
 
 ### 3. ContentProvider 无法访问
 
@@ -146,8 +230,7 @@ val result = KVStorage.getInt("settings", "value")
 
 ## 注意事项
 
-- ⚠️ 必须先初始化 Koin 才能使用 KVStorage 和 HostKVManager
+- ⚠️ 必须先初始化才能使用 KVStorage 和 HostKVManager
 - ⚠️ 跨进程通信依赖 ContentProvider，确保模块应用已安装和已打开
-- ⚠️ Double 类型使用字符串存储，可能存在精度问题
-- ⚠️ StringSet 在某些 Android 版本上可能返回不可变集合
-- ⚠️ 不建议读写大量数据
+- ⚠️ 不建议读写大量数据（建议单个 KV < 1MB）
+- ⚠️ 所有操作已线程安全，但频繁跨进程调用仍有性能开销
