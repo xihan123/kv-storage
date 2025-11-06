@@ -27,10 +27,13 @@ class MainHook : IXposedHookLoadPackage {
                         androidContext(application)
                         androidLogger()
                     }
-                    HostKVManager.init()
-
+                    HostKVManager.init(
+                        enableSharedPreferencesCache = true,
+                        modulePackageName = BuildConfig.APPLICATION_ID
+                    )
                     runCatching {
                         val textViewText = HostKVManager.createKVHelper().getString("textViewText")
+                        Log.d(TAG, "textViewText: $textViewText")
 
                         XposedHelpers.findAndHookMethod(
                             "website.xihan.kv.storage.MainActivity",
@@ -43,6 +46,7 @@ class MainHook : IXposedHookLoadPackage {
                     runCatching {
                         val swithchEnable =
                             HostKVManager.createKVHelper().getBoolean("swithchEnable")
+                        Log.d(TAG, "swithchEnable: $swithchEnable")
 
                         XposedHelpers.findAndHookMethod(
                             "website.xihan.kv.storage.MainActivity",
@@ -55,19 +59,23 @@ class MainHook : IXposedHookLoadPackage {
                     runCatching {
                         HostKVManager.createKVHelper()
                             .addChangeListener("swithchEnable") { s, any ->
-                                Log.d("LSP-XPOSED", "swithchEnable changed: $s,$any")
+                                Log.d(TAG, "swithchEnable changed: $s,$any")
                             }
                     }
 
                     runCatching {
                         HostKVManager.createKVHelper().addChangeListener("textViewText") { s, any ->
-                            Log.d("LSP-XPOSED", "textViewText changed: $s,$any")
+                            Log.d(TAG, "textViewText changed: $s,$any")
                         }
                     }
                 }
             }
 
         )
+    }
+
+    companion object {
+        const val TAG = "KV-XPOSED"
     }
 
 }
