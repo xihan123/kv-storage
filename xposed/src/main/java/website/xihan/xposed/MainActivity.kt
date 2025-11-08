@@ -1,18 +1,34 @@
 package website.xihan.xposed
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import website.xihan.kv.KVStorage
 import website.xihan.xposed.databinding.ActivityMainBinding
 
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+
+    private val filePickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            uri?.let {
+                contentResolver.takePersistableUriPermission(
+                    it,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+                website.xihan.kv.KVFileTransfer.saveFileUri("website.xihan.kv.storage", it)
+                binding.tvFileUri.text = it.toString()
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,6 +69,13 @@ class MainActivity : AppCompatActivity() {
                     ModuleConfig.swithchEnable = isChecked
                 }
             }
+
+            btnSelectFile.setOnClickListener {
+                filePickerLauncher.launch(arrayOf("*/*"))
+            }
+
+            val savedUri = KVStorage.getString("SHARED_SETTINGS", "fileUri")
+            tvFileUri.text = savedUri.ifEmpty { "未选择文件" }
         }
     }
 

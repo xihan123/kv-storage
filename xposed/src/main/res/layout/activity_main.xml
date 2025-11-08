@@ -23,5 +23,20 @@
         android:padding="25dp"
         android:text="hook 开关" />
 
+    <Button
+        android:id="@+id/btnSelectFile"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="选择文件" />
+
+    <TextView
+        android:id="@+id/tvFileUri"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:padding="16dp"
+        android:text="未选择文件"
+        android:textSize="12sp" />
 
 </LinearLayout>

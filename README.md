@@ -191,6 +191,49 @@ val keys = setOf("swithchEnable", "textViewText")
 val map = HostKVManager.createKVHelper().getBatch(keys)
 ```
 
+### 文件传输
+
+支持跨进程文件 URI 传输，自动处理权限授予和文件复制。
+
+#### 模块端
+
+```kotlin
+// 在 Activity 中选择文件并保存 URI
+private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+    uri?.let {
+        contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        KVFileTransfer.saveFileUri("website.xihan.kv.storage", it)
+    }
+}
+
+// 触发文件选择
+filePickerLauncher.launch(arrayOf("*/*"))
+
+// 读取已保存的 URI
+val savedUri = KVStorage.getString("SHARED_SETTINGS", "fileUri")
+```
+
+#### 宿主端
+
+```kotlin
+// 创建文件接收器
+val fileReceiver = KVFileReceiver(application)
+
+// 接收文件（一次性）
+fileReceiver.receiveFile()?.let { file ->
+    Log.d(TAG, "File saved to: ${file.absolutePath}")
+}
+
+// 监听文件变化（自动接收）
+fileReceiver.observeFile { file ->
+    Log.d(TAG, "File updated: ${file.absolutePath}")
+}
+
+// 自定义目标目录
+val customDir = File(application.filesDir, "downloads")
+fileReceiver.receiveFile(targetDir = customDir)
+```
+
 ## 常见问题
 
 ### 1. Koin 依赖注入未初始化
@@ -237,9 +280,26 @@ KVStorage.putInt("settings", "value", 123)
 val result = KVStorage.getInt("settings", "value")
 ```
 
+### 5. 文件传输权限问题
+
+**问题**: 宿主端无法读取文件 URI，抛出 `SecurityException`
+
+**解决方案**:
+
+- 确保模块端使用 `KVFileTransfer.saveFileUri()` 保存 URI（自动授予权限）
+- 确保模块端已调用 `takePersistableUriPermission()`
+- 检查目标应用包名是否正确
+
+```kotlin
+// 正确示例
+contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+KVFileTransfer.saveFileUri("com.example.host", uri)
+```
+
 ## 注意事项
 
 - ⚠️ 必须先初始化才能使用 KVStorage 和 HostKVManager
 - ⚠️ 跨进程通信依赖 ContentProvider，确保模块应用已安装和已打开
 - ⚠️ 不建议读写大量数据（建议单个 KV < 1MB）
 - ⚠️ 所有操作已线程安全，但频繁跨进程调用仍有性能开销
+- ⚠️ 文件传输需要模块端授予 URI 权限，使用 `KVFileTransfer.saveFileUri()` 自动处理

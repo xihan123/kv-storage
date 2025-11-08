@@ -12,6 +12,7 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.context.startKoin
 import website.xihan.kv.HostKVManager
+import website.xihan.kv.KVFileReceiver
 import kotlin.system.measureTimeMillis
 
 class MainHook : IXposedHookLoadPackage {
@@ -79,8 +80,18 @@ class MainHook : IXposedHookLoadPackage {
                         }.let {
                             Log.d(TAG, "getBatch time: ${it}")
                         }
+                    }
 
-
+                    runCatching {
+                        val receiveFile = KVFileReceiver(application)
+                        receiveFile.receiveFile()?.let { file ->
+                            Log.d(TAG, "File saved to: ${file.absolutePath}")
+                        }
+                        receiveFile.observeFile { file ->
+                            Log.d(TAG, "File updated and saved to: ${file.absolutePath}")
+                        }
+                    }.onFailure {
+                        Log.e(TAG, "Failed to setup file receiver", it)
                     }
                 }
             }
