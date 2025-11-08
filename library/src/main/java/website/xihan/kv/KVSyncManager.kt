@@ -2,7 +2,6 @@ package website.xihan.kv
 
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.util.Log
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -36,9 +35,7 @@ object KVSyncManager : KoinComponent {
             val intent = Intent(ACTION_KV_CHANGED).apply {
                 putExtra(EXTRA_KV_ID, kvId)
                 putExtra(EXTRA_KEY, key)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
-                }
+                addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
             }
             
             if (targetPackages.isEmpty()) {
