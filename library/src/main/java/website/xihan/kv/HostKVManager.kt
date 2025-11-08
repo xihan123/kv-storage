@@ -54,7 +54,24 @@ object HostKVManager : KoinComponent {
         if (enableSpCache) {
             spCache = systemContext.getSharedPreferences("kv_host_cache", Context.MODE_PRIVATE)
         }
+        grantUriPermissions()
         initBroadcastReceiver()
+    }
+
+    /**
+     * 授予ContentProvider URI权限
+     */
+    private fun grantUriPermissions() {
+        try {
+            val uri = "content://$MODULE_AUTHORITY".toUri()
+            systemContext.grantUriPermission(
+                systemContext.packageName,
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to grant URI permissions (may not be needed)", e)
+        }
     }
 
     /**
