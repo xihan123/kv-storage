@@ -36,7 +36,7 @@ class KVContentProvider : ContentProvider() {
     }
 
     override fun onCreate(): Boolean {
-        // 初始化模块存储
+        Log.d(TAG, "ContentProvider onCreate, context: ${context?.packageName}")
         return true
     }
 
@@ -60,7 +60,6 @@ class KVContentProvider : ContentProvider() {
                     val type = uri.getQueryParameter("type") ?: "string"
                     val default = uri.getQueryParameter("default")
 
-                    val cursor = MatrixCursor(arrayOf("value"))
                     val value = when (type) {
                         "string" -> KVStorage.getString(kvId, key, default ?: "")
                         "int" -> KVStorage.getInt(kvId, key, default?.toIntOrNull() ?: 0).toString()
@@ -80,6 +79,8 @@ class KVContentProvider : ContentProvider() {
                             ""
                         }
                     }
+                    Log.d(TAG, "Query: kvId=$kvId, key=$key, type=$type, value=$value")
+                    val cursor = MatrixCursor(arrayOf("value"))
                     cursor.addRow(arrayOf(value))
                     cursor
                 }
@@ -121,17 +122,21 @@ class KVContentProvider : ContentProvider() {
                     val type = uri.getQueryParameter("type") ?: "string"
                     val value = uri.getQueryParameter("value")
 
-                    when (type) {
-                        "string" -> value?.let { KVStorage.putString(kvId, key, it) }
-                        "int" -> value?.toIntOrNull()?.let { KVStorage.putInt(kvId, key, it) }
-                        "long" -> value?.toLongOrNull()?.let { KVStorage.putLong(kvId, key, it) }
-                        "boolean" -> value?.toBooleanStrictOrNull()?.let { KVStorage.putBoolean(kvId, key, it) }
-                        "float" -> value?.toFloatOrNull()?.let { KVStorage.putFloat(kvId, key, it) }
-                        "double" -> value?.toLongOrNull()?.let { KVStorage.putDouble(kvId, key, Double.fromBits(it)) }
+                    val success = when (type) {
+                        "string" -> value?.let { KVStorage.putString(kvId, key, it) } ?: false
+                        "int" -> value?.toIntOrNull()?.let { KVStorage.putInt(kvId, key, it) } ?: false
+                        "long" -> value?.toLongOrNull()?.let { KVStorage.putLong(kvId, key, it) } ?: false
+                        "boolean" -> value?.toBooleanStrictOrNull()?.let { KVStorage.putBoolean(kvId, key, it) } ?: false
+                        "float" -> value?.toFloatOrNull()?.let { KVStorage.putFloat(kvId, key, it) } ?: false
+                        "double" -> value?.toLongOrNull()?.let { KVStorage.putDouble(kvId, key, Double.fromBits(it)) } ?: false
                         "remove" -> KVStorage.remove(kvId, key)
                         "clear" -> KVStorage.clearAll(kvId)
-                        else -> Log.w(TAG, "Unknown type: $type")
+                        else -> {
+                            Log.w(TAG, "Unknown type: $type")
+                            false
+                        }
                     }
+                    Log.d(TAG, "Insert: kvId=$kvId, key=$key, type=$type, value=$value, success=$success")
                     uri
                 }
                 else -> null
