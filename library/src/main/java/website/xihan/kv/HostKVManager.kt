@@ -2,6 +2,7 @@ package website.xihan.kv
 
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -54,24 +55,7 @@ object HostKVManager : KoinComponent {
         if (enableSpCache) {
             spCache = systemContext.getSharedPreferences("kv_host_cache", Context.MODE_PRIVATE)
         }
-        grantUriPermissions()
         initBroadcastReceiver()
-    }
-
-    /**
-     * 授予ContentProvider URI权限
-     */
-    private fun grantUriPermissions() {
-        try {
-            val uri = "content://$MODULE_AUTHORITY".toUri()
-            systemContext.grantUriPermission(
-                systemContext.packageName,
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to grant URI permissions (may not be needed)", e)
-        }
     }
 
     /**
@@ -229,14 +213,14 @@ object HostKVManager : KoinComponent {
         fun putString(key: String, value: String) {
             try {
                 val uri = buildPutUri(kvId, key, "string", value)
-                systemContext.contentResolver.insert(uri, null)
+                systemContext.contentResolver.insert(uri, ContentValues())
                 getCache(kvId).put(key, value)
                 if (enableSpCache) {
                     val cacheKey = getSpCacheKey(kvId, key)
                     spCache?.edit(true) { putString(cacheKey, value) }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Failed to put string: $key", e)
             }
         }
 
@@ -273,14 +257,14 @@ object HostKVManager : KoinComponent {
         fun putInt(key: String, value: Int) {
             try {
                 val uri = buildPutUri(kvId, key, "int", value.toString())
-                systemContext.contentResolver.insert(uri, null)
+                systemContext.contentResolver.insert(uri, ContentValues())
                 getCache(kvId).put(key, value)
                 if (enableSpCache) {
                     val cacheKey = getSpCacheKey(kvId, key)
                     spCache?.edit(true) { putInt(cacheKey, value) }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Failed to put int: $key", e)
             }
         }
 
@@ -318,14 +302,14 @@ object HostKVManager : KoinComponent {
         fun putLong(key: String, value: Long) {
             try {
                 val uri = buildPutUri(kvId, key, "long", value.toString())
-                systemContext.contentResolver.insert(uri, null)
+                systemContext.contentResolver.insert(uri, ContentValues())
                 getCache(kvId).put(key, value)
                 if (enableSpCache) {
                     val cacheKey = getSpCacheKey(kvId, key)
                     spCache?.edit(true) { putLong(cacheKey, value) }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Failed to put long: $key", e)
             }
         }
 
@@ -363,14 +347,14 @@ object HostKVManager : KoinComponent {
         fun putBoolean(key: String, value: Boolean) {
             try {
                 val uri = buildPutUri(kvId, key, "boolean", value.toString())
-                systemContext.contentResolver.insert(uri, null)
+                systemContext.contentResolver.insert(uri, ContentValues())
                 getCache(kvId).put(key, value)
                 if (enableSpCache) {
                     val cacheKey = getSpCacheKey(kvId, key)
                     spCache?.edit(true) { putBoolean(cacheKey, value) }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Failed to put boolean: $key", e)
             }
         }
 
@@ -408,14 +392,14 @@ object HostKVManager : KoinComponent {
         fun putFloat(key: String, value: Float) {
             try {
                 val uri = buildPutUri(kvId, key, "float", value.toString())
-                systemContext.contentResolver.insert(uri, null)
+                systemContext.contentResolver.insert(uri, ContentValues())
                 getCache(kvId).put(key, value)
                 if (enableSpCache) {
                     val cacheKey = getSpCacheKey(kvId, key)
                     spCache?.edit(true) { putFloat(cacheKey, value) }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Failed to put float: $key", e)
             }
         }
 
@@ -453,14 +437,14 @@ object HostKVManager : KoinComponent {
         fun putDouble(key: String, value: Double) {
             try {
                 val uri = buildPutUri(kvId, key, "double", value.toString())
-                systemContext.contentResolver.insert(uri, null)
+                systemContext.contentResolver.insert(uri, ContentValues())
                 getCache(kvId).put(key, value)
                 if (enableSpCache) {
                     val cacheKey = getSpCacheKey(kvId, key)
                     spCache?.edit(true) { putString(cacheKey, value.toString()) }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Failed to put double: $key", e)
             }
         }
 
@@ -535,7 +519,7 @@ object HostKVManager : KoinComponent {
         fun remove(key: String): Boolean {
             return try {
                 val uri = buildPutUri(kvId, key, "remove", "")
-                systemContext.contentResolver.insert(uri, null)
+                systemContext.contentResolver.insert(uri, ContentValues())
                 getCache(kvId).remove(key)
                 if (enableSpCache) {
                     val cacheKey = getSpCacheKey(kvId, key)
@@ -615,7 +599,7 @@ object HostKVManager : KoinComponent {
         fun clearAll(): Boolean {
             return try {
                 val uri = buildPutUri(kvId, "__CLEAR_ALL__", "clear", "")
-                systemContext.contentResolver.insert(uri, null)
+                systemContext.contentResolver.insert(uri, ContentValues())
                 clearCache()
                 true
             } catch (e: Exception) {
