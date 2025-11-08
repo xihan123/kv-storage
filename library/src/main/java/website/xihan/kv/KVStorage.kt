@@ -6,7 +6,6 @@ import android.content.SharedPreferences
 import android.util.Base64
 import android.util.Log
 import androidx.core.content.edit
-import androidx.core.net.toUri
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.util.concurrent.ConcurrentHashMap
@@ -85,12 +84,7 @@ object KVStorage : KoinComponent {
     fun getString(kvId: String, key: String, default: String = ""): String {
         return getLock(kvId).read {
             try {
-                val prefs = getPrefs(kvId)
-                if (prefs.contains(key)) {
-                    prefs.getString(key, default) ?: default
-                } else {
-                    getFromProvider(kvId, key, "string", default) as? String ?: default
-                }
+                getPrefs(kvId).getString(key, default) ?: default
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to get string: $key", e)
                 default
@@ -115,12 +109,7 @@ object KVStorage : KoinComponent {
     fun getInt(kvId: String, key: String, default: Int = 0): Int {
         return getLock(kvId).read {
             try {
-                val prefs = getPrefs(kvId)
-                if (prefs.contains(key)) {
-                    prefs.getInt(key, default)
-                } else {
-                    getFromProvider(kvId, key, "int", default.toString())?.toString()?.toIntOrNull() ?: default
-                }
+                getPrefs(kvId).getInt(key, default)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to get int: $key", e)
                 default
@@ -145,12 +134,7 @@ object KVStorage : KoinComponent {
     fun getLong(kvId: String, key: String, default: Long = 0L): Long {
         return getLock(kvId).read {
             try {
-                val prefs = getPrefs(kvId)
-                if (prefs.contains(key)) {
-                    prefs.getLong(key, default)
-                } else {
-                    getFromProvider(kvId, key, "long", default.toString())?.toString()?.toLongOrNull() ?: default
-                }
+                getPrefs(kvId).getLong(key, default)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to get long: $key", e)
                 default
@@ -175,12 +159,7 @@ object KVStorage : KoinComponent {
     fun getBoolean(kvId: String, key: String, default: Boolean = false): Boolean {
         return getLock(kvId).read {
             try {
-                val prefs = getPrefs(kvId)
-                if (prefs.contains(key)) {
-                    prefs.getBoolean(key, default)
-                } else {
-                    getFromProvider(kvId, key, "boolean", default.toString())?.toString()?.toBooleanStrictOrNull() ?: default
-                }
+                getPrefs(kvId).getBoolean(key, default)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to get boolean: $key", e)
                 default
@@ -205,12 +184,7 @@ object KVStorage : KoinComponent {
     fun getFloat(kvId: String, key: String, default: Float = 0f): Float {
         return getLock(kvId).read {
             try {
-                val prefs = getPrefs(kvId)
-                if (prefs.contains(key)) {
-                    prefs.getFloat(key, default)
-                } else {
-                    getFromProvider(kvId, key, "float", default.toString())?.toString()?.toFloatOrNull() ?: default
-                }
+                getPrefs(kvId).getFloat(key, default)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to get float: $key", e)
                 default
@@ -235,13 +209,8 @@ object KVStorage : KoinComponent {
     fun getDouble(kvId: String, key: String, default: Double = 0.0): Double {
         return getLock(kvId).read {
             try {
-                val prefs = getPrefs(kvId)
-                if (prefs.contains(key)) {
-                    Double.fromBits(prefs.getLong(key, default.toRawBits()))
-                } else {
-                    val bits = getFromProvider(kvId, key, "double", default.toRawBits().toString())?.toString()?.toLongOrNull()
-                    if (bits != null) Double.fromBits(bits) else default
-                }
+                if (!getPrefs(kvId).contains(key)) return@read default
+                Double.fromBits(getPrefs(kvId).getLong(key, default.toRawBits()))
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to get double: $key", e)
                 default
@@ -266,34 +235,11 @@ object KVStorage : KoinComponent {
     fun getStringSet(kvId: String, key: String, default: Set<String>): Set<String> {
         return getLock(kvId).read {
             try {
-                val prefs = getPrefs(kvId)
-                if (prefs.contains(key)) {
-                    prefs.getStringSet(key, default)?.toSet() ?: default
-                } else {
-                    default
-                }
+                getPrefs(kvId).getStringSet(key, default)?.toSet() ?: default
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to get string set: $key", e)
                 default
             }
-        }
-    }
-
-    /**
-     * 从ContentProvider读取数据（回退机制）
-     */
-    private fun getFromProvider(kvId: String, key: String, type: String, default: String): Any? {
-        return try {
-            val uri = "content://$MODULE_AUTHORITY/get/$kvId/$key".toUri().buildUpon()
-                .appendQueryParameter("type", type)
-                .appendQueryParameter("default", default)
-                .build()
-            val cursor = context.contentResolver.query(uri, null, null, null, null)
-            cursor?.use {
-                if (it.moveToFirst()) it.getString(0) else null
-            }
-        } catch (e: Exception) {
-            null
         }
     }
 
